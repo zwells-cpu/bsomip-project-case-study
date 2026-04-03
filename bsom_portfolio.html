@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSOM Portal — Case Study</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0d0d0f;
+    --paper: #f5f0e8;
+    --cream: #ede8da;
+    --accent: #c2410c;
+    --accent-warm: #ea580c;
+    --gold: #b45309;
+    --muted: #78716c;
+    --border: #d6cfc2;
+    --white: #fdfaf5;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE TEXTURE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.6;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .hero-left {
+    padding: 80px 60px 80px 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+  }
+
+  .hero-right {
+    background: var(--ink);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Animated grid visualization */
+  .portal-visual {
+    width: 340px;
+    height: 400px;
+    position: relative;
+    animation: floatUp 6s ease-in-out infinite;
+  }
+
+  @keyframes floatUp {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-12px); }
+  }
+
+  .vis-panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 16px 20px;
+    position: absolute;
+    backdrop-filter: blur(4px);
+  }
+
+  .vis-panel.main {
+    top: 0; left: 0; right: 0;
+    height: 180px;
+  }
+
+  .vis-panel.stat-a { bottom: 20px; left: 0; width: 155px; }
+  .vis-panel.stat-b { bottom: 20px; right: 0; width: 155px; }
+
+  .vis-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: rgba(255,255,255,0.4);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .vis-pipeline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .vis-stage {
+    font-family: 'DM Mono', monospace;
+    font-size: 7.5px;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 3px;
+    padding: 4px 7px;
+    white-space: nowrap;
+  }
+
+  .vis-stage.active {
+    color: #fb923c;
+    background: rgba(251,146,60,0.12);
+    border-color: rgba(251,146,60,0.3);
+  }
+
+  .vis-arrow {
+    color: rgba(255,255,255,0.2);
+    font-size: 10px;
+  }
+
+  .vis-bar-group { margin-top: 8px; }
+  .vis-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+  .vis-bar-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 7px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.1em;
+    width: 50px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .vis-bar-track {
+    flex: 1;
+    height: 3px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .vis-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #c2410c, #fb923c);
+    border-radius: 2px;
+    animation: barGrow 1.8s cubic-bezier(0.4,0,0.2,1) forwards;
+    transform-origin: left;
+  }
+
+  @keyframes barGrow {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  .vis-number {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #fb923c;
+    line-height: 1;
+  }
+
+  .vis-sublabel {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* bg grid on dark side */
+  .hero-right::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .hero-right::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; right: -60px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(194,65,12,0.18) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  /* ── HERO TEXT ── */
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .eyebrow::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  .hero-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: clamp(44px, 5vw, 72px);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+  }
+
+  .hero-title em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .hero-subtitle {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    font-weight: 300;
+    color: var(--muted);
+    margin-bottom: 48px;
+    font-style: italic;
+  }
+
+  .hero-meta {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 52px;
+  }
+
+  .meta-item {}
+  .meta-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .meta-key {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  .hero-divider {
+    width: 60px;
+    height: 1px;
+    background: var(--border);
+    margin-bottom: 28px;
+  }
+
+  .hero-intro {
+    font-size: 19px;
+    line-height: 1.75;
+    color: #3d3530;
+    max-width: 480px;
+    font-weight: 300;
+  }
+
+  /* ── SECTION COMMON ── */
+  section {
+    padding: 100px 80px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 56px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    max-width: 120px;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: clamp(32px, 3.5vw, 52px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin-bottom: 32px;
+  }
+
+  /* ── PROBLEM / SOLUTION ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: start;
+  }
+
+  .problem-block {
+    padding: 48px;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .problem-block::before {
+    content: '"';
+    position: absolute;
+    top: -20px; left: 30px;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 180px;
+    color: rgba(255,255,255,0.04);
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .problem-block .section-label { color: #fb923c; }
+  .problem-block .section-label::after { background: rgba(255,255,255,0.15); }
+
+  .problem-block .section-title { color: var(--paper); }
+
+  .problem-text {
+    font-size: 17px;
+    line-height: 1.8;
+    color: rgba(245,240,232,0.75);
+    font-weight: 300;
+  }
+
+  .solution-block {}
+
+  .solution-text {
+    font-size: 18px;
+    line-height: 1.8;
+    color: #3d3530;
+    font-weight: 300;
+    margin-bottom: 32px;
+  }
+
+  /* ── FEATURES ── */
+  .features-section {
+    background: var(--cream);
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 16px;
+  }
+
+  .feature-card {
+    background: var(--white);
+    padding: 44px 40px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s ease;
+    cursor: default;
+  }
+
+  .feature-card:hover { background: var(--ink); }
+
+  .feature-card:hover .feature-number,
+  .feature-card:hover .feature-title,
+  .feature-card:hover .feature-text { color: var(--paper); }
+
+  .feature-card:hover .feature-icon-line { background: var(--accent-warm); }
+
+  .feature-number {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    margin-bottom: 24px;
+    transition: color 0.3s;
+  }
+
+  .feature-icon-line {
+    width: 28px;
+    height: 2px;
+    background: var(--accent);
+    margin-bottom: 20px;
+    transition: background 0.3s;
+  }
+
+  .feature-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    transition: color 0.3s;
+    line-height: 1.4;
+  }
+
+  .feature-text {
+    font-size: 15.5px;
+    line-height: 1.75;
+    color: var(--muted);
+    font-weight: 300;
+    transition: color 0.3s;
+  }
+
+  .feature-card:hover .feature-text { color: rgba(245,240,232,0.65); }
+
+  /* ── LIFECYCLE ── */
+  .lifecycle-section {}
+
+  .lifecycle-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 60px 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .lifecycle-stage {
+    flex-shrink: 0;
+    text-align: center;
+    position: relative;
+  }
+
+  .stage-pill {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 14px 24px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  .stage-pill.highlighted {
+    background: var(--accent);
+  }
+
+  .stage-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display: block;
+  }
+
+  .stage-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    display: block;
+    margin-bottom: 2px;
+    font-style: italic;
+  }
+
+  .lifecycle-arrow {
+    flex-shrink: 0;
+    padding: 0 12px;
+    color: var(--border);
+    font-size: 20px;
+  }
+
+  .lifecycle-desc {
+    max-width: 680px;
+    font-size: 18px;
+    line-height: 1.8;
+    color: #3d3530;
+    font-weight: 300;
+  }
+
+  /* ── TECH STACK ── */
+  .tech-section {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .tech-section .section-label { color: #fb923c; }
+  .tech-section .section-label::after { background: rgba(255,255,255,0.15); }
+  .tech-section .section-title { color: var(--paper); }
+
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    margin-top: 16px;
+  }
+
+  .tech-card {
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 40px 36px;
+    position: relative;
+    transition: border-color 0.3s, background 0.3s;
+  }
+
+  .tech-card:hover {
+    border-color: var(--accent);
+    background: rgba(194,65,12,0.06);
+  }
+
+  .tech-category {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 16px;
+  }
+
+  .tech-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--paper);
+    margin-bottom: 10px;
+  }
+
+  .tech-detail {
+    font-size: 14px;
+    color: rgba(245,240,232,0.45);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  .tech-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  /* ── IMPACT ── */
+  .impact-section {}
+
+  .impact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+    margin-top: 16px;
+  }
+
+  .impact-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+  }
+
+  .stat-block {
+    background: var(--cream);
+    padding: 40px 36px;
+  }
+
+  .stat-big {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 60px;
+    font-weight: 300;
+    line-height: 1;
+    color: var(--accent);
+    font-style: italic;
+    margin-bottom: 8px;
+  }
+
+  .stat-desc {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .impact-text-block .section-title { margin-bottom: 24px; }
+
+  .impact-list {
+    list-style: none;
+    margin-top: 16px;
+  }
+
+  .impact-list li {
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 17px;
+    line-height: 1.65;
+    color: #3d3530;
+    font-weight: 300;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .impact-list li::before {
+    content: '→';
+    color: var(--accent);
+    font-size: 14px;
+    margin-top: 3px;
+    flex-shrink: 0;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 60px 80px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--ink);
+    color: rgba(245,240,232,0.45);
+  }
+
+  .footer-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--paper);
+    font-style: italic;
+  }
+
+  .footer-mono {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* ── SCROLL ANIMATIONS ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.9s cubic-bezier(0.4,0,0.2,1), transform 0.9s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+
+  /* ── HERO ENTRANCE ── */
+  .hero-left > * {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: heroIn 0.9s cubic-bezier(0.4,0,0.2,1) forwards;
+  }
+
+  .hero-left > *:nth-child(1) { animation-delay: 0.2s; }
+  .hero-left > *:nth-child(2) { animation-delay: 0.35s; }
+  .hero-left > *:nth-child(3) { animation-delay: 0.45s; }
+  .hero-left > *:nth-child(4) { animation-delay: 0.55s; }
+  .hero-left > *:nth-child(5) { animation-delay: 0.65s; }
+  .hero-left > *:nth-child(6) { animation-delay: 0.75s; }
+
+  @keyframes heroIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero-right .portal-visual {
+    opacity: 0;
+    animation: fadeIn 1.2s 0.6s cubic-bezier(0.4,0,0.2,1) forwards;
+  }
+
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; min-height: auto; }
+    .hero-right { height: 380px; }
+    .hero-left { padding: 60px 40px; }
+    section { padding: 70px 40px; }
+    .two-col, .impact-grid { grid-template-columns: 1fr; gap: 40px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .tech-grid { grid-template-columns: 1fr 1fr; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+    .lifecycle-flow { gap: 0; }
+  }
+
+  @media (max-width: 600px) {
+    .hero-left { padding: 48px 28px; }
+    section { padding: 60px 28px; }
+    .hero-meta { flex-wrap: wrap; gap: 24px; }
+    .features-grid, .tech-grid, .impact-stats { grid-template-columns: 1fr; }
+    footer { padding: 40px 28px; }
+    .lifecycle-flow { flex-direction: column; align-items: flex-start; }
+    .lifecycle-arrow { transform: rotate(90deg); padding: 4px 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ HERO ══════════════════ -->
+<section class="hero" style="border:none; padding:0;">
+  <div class="hero-left">
+    <div class="eyebrow">Case Study</div>
+    <h1 class="hero-title">BSOM Intake<br>&amp; <em>Operations</em><br>Portal</h1>
+    <p class="hero-subtitle">Internal Operations Platform — Behavioral Solutions of Mississippi</p>
+    <div class="hero-meta">
+      <div class="meta-item">
+        <div class="meta-value">2024–2025</div>
+        <div class="meta-key">Timeline</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-value">Solo Designer &amp; Builder</div>
+        <div class="meta-key">Role</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-value">Internal Tool</div>
+        <div class="meta-key">Type</div>
+      </div>
+    </div>
+    <div class="hero-divider"></div>
+    <p class="hero-intro">
+      Transforming a fragmented, spreadsheet-dependent intake process into a centralized, 
+      database-driven operations portal — built entirely by an EA with a vision.
+    </p>
+  </div>
+
+  <div class="hero-right">
+    <div class="portal-visual">
+      <!-- Main panel: Lifecycle pipeline -->
+      <div class="vis-panel main">
+        <div class="vis-label">Referral Lifecycle Pipeline</div>
+        <div class="vis-pipeline">
+          <span class="vis-stage">Referral</span>
+          <span class="vis-arrow">›</span>
+          <span class="vis-stage">Interview</span>
+          <span class="vis-arrow">›</span>
+          <span class="vis-stage active">Assessment</span>
+          <span class="vis-arrow">›</span>
+          <span class="vis-stage">Auth</span>
+          <span class="vis-arrow">›</span>
+          <span class="vis-stage">Services</span>
+        </div>
+        <div class="vis-bar-group" style="margin-top:20px;">
+          <div class="vis-bar-row">
+            <span class="vis-bar-label">Intake</span>
+            <div class="vis-bar-track"><div class="vis-bar-fill" style="width:87%;animation-delay:0.8s"></div></div>
+          </div>
+          <div class="vis-bar-row">
+            <span class="vis-bar-label">Active</span>
+            <div class="vis-bar-track"><div class="vis-bar-fill" style="width:63%;animation-delay:1.0s"></div></div>
+          </div>
+          <div class="vis-bar-row">
+            <span class="vis-bar-label">Ready</span>
+            <div class="vis-bar-track"><div class="vis-bar-fill" style="width:41%;animation-delay:1.2s"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stat A -->
+      <div class="vis-panel stat-a">
+        <div class="vis-label">Clients Tracked</div>
+        <div class="vis-number">52</div>
+        <div class="vis-sublabel">Active referrals</div>
+      </div>
+
+      <!-- Stat B -->
+      <div class="vis-panel stat-b">
+        <div class="vis-label">Staff Supported</div>
+        <div class="vis-number">28+</div>
+        <div class="vis-sublabel">BCBAs &amp; RBTs</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════ PROBLEM / SOLUTION ══════════════════ -->
+<section>
+  <div class="two-col">
+    <div class="problem-block reveal">
+      <div class="section-label">The Problem</div>
+      <h2 class="section-title" style="font-size: clamp(26px,3vw,40px);">Spreadsheets Can't Scale a Clinic</h2>
+      <p class="problem-text">
+        BSM relied on fragmented spreadsheets to manage referrals, parent interviews, 
+        assessments, treatment plans, and service readiness across multiple clinics. 
+        Bottlenecks were invisible. Workflows were inconsistent. Intake coordination 
+        was a daily exercise in manual effort — and every gap in data was a gap in care.
+      </p>
+    </div>
+    <div class="solution-block reveal reveal-delay-2">
+      <div class="section-label">The Solution</div>
+      <h2 class="section-title" style="font-size: clamp(26px,3vw,40px);">A Purpose-Built Operations Portal</h2>
+      <p class="solution-text">
+        I designed and built a modular internal operations portal from the ground up — 
+        connecting a live Supabase database to a clean, responsive interface with real-time 
+        lifecycle tracking, operational dashboards, and role-based access. No external vendor. 
+        No budget for a SaaS tool. Just vision, resourcefulness, and code.
+      </p>
+      <p class="solution-text">
+        The result: a system that gave clinic leadership actual visibility into their pipeline 
+        for the first time — and gave staff a single source of truth for every referral.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════ LIFECYCLE ══════════════════ -->
+<section>
+  <div class="section-label">Workflow Architecture</div>
+  <h2 class="section-title reveal">From Referral to<br><em>Ready for Services</em></h2>
+
+  <div class="lifecycle-flow reveal reveal-delay-1">
+    <div class="lifecycle-stage">
+      <div class="stage-pill">
+        <span class="stage-num">01</span>
+        <span class="stage-name">Referral</span>
+      </div>
+    </div>
+    <div class="lifecycle-arrow">→</div>
+    <div class="lifecycle-stage">
+      <div class="stage-pill">
+        <span class="stage-num">02</span>
+        <span class="stage-name">Parent Interview</span>
+      </div>
+    </div>
+    <div class="lifecycle-arrow">→</div>
+    <div class="lifecycle-stage">
+      <div class="stage-pill highlighted">
+        <span class="stage-num">03</span>
+        <span class="stage-name">Assessment</span>
+      </div>
+    </div>
+    <div class="lifecycle-arrow">→</div>
+    <div class="lifecycle-stage">
+      <div class="stage-pill">
+        <span class="stage-num">04</span>
+        <span class="stage-name">Treatment Plan</span>
+      </div>
+    </div>
+    <div class="lifecycle-arrow">→</div>
+    <div class="lifecycle-stage">
+      <div class="stage-pill">
+        <span class="stage-num">05</span>
+        <span class="stage-name">Authorization</span>
+      </div>
+    </div>
+    <div class="lifecycle-arrow">→</div>
+    <div class="lifecycle-stage">
+      <div class="stage-pill">
+        <span class="stage-num">06</span>
+        <span class="stage-name">Ready for Services</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="lifecycle-desc reveal reveal-delay-2">
+    Each referral moves through a defined lifecycle, tracked in real time against a Supabase 
+    backend. Staff can see exactly where every client stands — eliminating the follow-up 
+    emails, the missed steps, and the manual status checks that previously consumed hours each week.
+  </p>
+</section>
+
+
+<!-- ══════════════════ FEATURES ══════════════════ -->
+<section class="features-section">
+  <div class="section-label">Key Features</div>
+  <h2 class="section-title reveal">Built for the people<br>who run the clinic</h2>
+
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <div class="feature-number">01</div>
+      <div class="feature-icon-line"></div>
+      <div class="feature-title">Live Database Integration</div>
+      <p class="feature-text">Connected directly to a Supabase backend — every intake entry, status update, and pipeline change reflected in real time across all devices.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-1">
+      <div class="feature-number">02</div>
+      <div class="feature-icon-line"></div>
+      <div class="feature-title">Pipeline Dashboards</div>
+      <p class="feature-text">Operational dashboards give leadership a live view of intake volume, bottlenecks, and referral progression — no spreadsheet formulas required.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-2">
+      <div class="feature-number">03</div>
+      <div class="feature-icon-line"></div>
+      <div class="feature-title">Role-Based Access</div>
+      <p class="feature-text">Different views for different staff roles — intake coordinators, BCBAs, and clinic leadership each see what's relevant to their work.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-1">
+      <div class="feature-number">04</div>
+      <div class="feature-icon-line"></div>
+      <div class="feature-title">Modular Architecture</div>
+      <p class="feature-text">Built with a modular interface that can expand as the organization grows — new operational modules can be added without rebuilding from scratch.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-2">
+      <div class="feature-number">05</div>
+      <div class="feature-icon-line"></div>
+      <div class="feature-title">Responsive Design</div>
+      <p class="feature-text">Fully optimized for desktop and mobile use — staff can check intake status from anywhere, not just a desktop workstation.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-3">
+      <div class="feature-number">06</div>
+      <div class="feature-icon-line"></div>
+      <div class="feature-title">Light &amp; Dark Themes</div>
+      <p class="feature-text">Built-in theme support for accessibility and user preference — a small detail that reflects the care put into every aspect of the interface.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════ TECH STACK ══════════════════ -->
+<section class="tech-section">
+  <div class="section-label">Technology Stack</div>
+  <h2 class="section-title reveal">Built lean.<br>Built to last.</h2>
+
+  <div class="tech-grid">
+    <div class="tech-card reveal">
+      <div class="tech-dot"></div>
+      <div class="tech-category">Frontend</div>
+      <div class="tech-name">HTML / JS</div>
+      <p class="tech-detail">Responsive interface built without heavyweight frameworks — clean, fast, and maintainable.</p>
+    </div>
+    <div class="tech-card reveal reveal-delay-1">
+      <div class="tech-dot"></div>
+      <div class="tech-category">Database</div>
+      <div class="tech-name">Supabase</div>
+      <p class="tech-detail">Live PostgreSQL backend with real-time subscriptions powering the intake pipeline.</p>
+    </div>
+    <div class="tech-card reveal reveal-delay-2">
+      <div class="tech-dot"></div>
+      <div class="tech-category">Deployment</div>
+      <div class="tech-name">GitHub Pages</div>
+      <p class="tech-detail">Zero-cost hosting with version control built in — deployed and iterable from day one.</p>
+    </div>
+    <div class="tech-card reveal reveal-delay-3">
+      <div class="tech-dot"></div>
+      <div class="tech-category">AI-Assisted Dev</div>
+      <div class="tech-name">Claude + Codex</div>
+      <p class="tech-detail">Leveraged AI tools throughout development to accelerate building and problem-solving.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════ IMPACT ══════════════════ -->
+<section class="impact-section">
+  <div class="section-label">Outcomes &amp; Impact</div>
+
+  <div class="impact-grid">
+    <div class="impact-stats reveal">
+      <div class="stat-block">
+        <div class="stat-big">52</div>
+        <div class="stat-desc">Client referrals<br>centralized</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-big">0</div>
+        <div class="stat-desc">External tools<br>or vendors</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-big">∞</div>
+        <div class="stat-desc">Spreadsheet<br>tabs replaced</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-big">6</div>
+        <div class="stat-desc">Pipeline stages<br>tracked live</div>
+      </div>
+    </div>
+
+    <div class="impact-text-block reveal reveal-delay-2">
+      <h2 class="section-title" style="font-size: clamp(28px,3vw,44px);">From chaos<br>to <em>clarity</em></h2>
+      <ul class="impact-list">
+        <li>Replaced manual spreadsheet tracking across multiple clinic locations with a single, centralized operations portal</li>
+        <li>Gave clinic leadership real-time visibility into the full referral pipeline for the first time</li>
+        <li>Enabled staff to monitor and update intake progress without relying on email chains or status meetings</li>
+        <li>Created a scalable foundation for future operational analytics, automation, and reporting</li>
+        <li>Demonstrated that internal tooling doesn't require an IT department — just the right mindset and resourcefulness</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════ FOOTER ══════════════════ -->
+<footer>
+  <div class="footer-name">Zanteria</div>
+  <div class="footer-mono">Portfolio · BSOM Case Study · 2025</div>
+  <div class="footer-mono">Built by an Executive Assistant. Powered by vision.</div>
+</footer>
+
+
+<script>
+  // Intersection Observer for scroll reveals
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  reveals.forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
